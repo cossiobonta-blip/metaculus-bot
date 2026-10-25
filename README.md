@@ -1,4 +1,12 @@
-# Simple Metaculus forecasting bot
+# scanlab-bot — Metaculus Fall 2026 FutureEval
+
+Open-source forecasting bot competing as **scanlab-bot** in the [Fall 2026 FutureEval Bot Tournament](https://www.metaculus.com/tournament/fall-futureeval-2026/) and [MiniBench](https://www.metaculus.com/futureeval/minibench/). Maintained by Cristóbal Ossio (ScanLab Solutions, Santiago, Chile), with the bot code written and iterated by Claude.
+
+**How it works (no human in the loop):** every 20 minutes a GitHub Actions job pulls the open questions, a research step (GPT-6 Luna with OpenRouter web search) compiles dated facts, base rates and upcoming events, then GPT-6.1 Sol (medium reasoning) writes two independent forecasts that are aggregated and posted together with the reasoning as a comment. Research quality is prioritised over reasoning depth, following the FutureEval Spring 2026 findings. Everything else is the official `metac-bot-template` below.
+
+---
+
+# Simple Metaculus forecasting bot (upstream template)
 This repository contains a simple bot meant to get you started with creating your own bot for the AI Forecasting Tournament. Go to https://www.metaculus.com/futureeval/participate/ for more info and tournament rules (and then go to the  "Getting Started" section of our [resources](https://www.metaculus.com/notebooks/38928/ai-benchmark-resources/#want-to-join-the-ai-forecasting-benchmark) page).
 
 **Brand new to this?** You can get a working bot running in about 5 minutes without writing a single line of code — just fork this repo, paste two API keys into GitHub, and click "Run workflow". See **[Quick start](#quick-start--fork-and-use-github-actions)** below.

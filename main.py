@@ -174,8 +174,11 @@ class FallTemplateBot2026(ForecastBot):
             f"""
             You are an assistant to a superforecaster.
             The superforecaster will give you a question they intend to forecast on.
-            To be a great assistant, you generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+            To be a great assistant, you search the web and generate a concise but detailed rundown of the most relevant news, including if the question would resolve Yes or No based on current information.
+            Always include: (1) the current status with the date of each fact, (2) the relevant historical base rate or how often similar events happened, (3) scheduled events or deadlines before the resolution date, and (4) what the most recent credible sources say. Prefer primary sources and give dates. Say explicitly when you could not find recent information.
             You do not produce forecasts yourself.
+
+            Today is {datetime.now().strftime("%Y-%m-%d")}.
 
             Question:
             {question.question_text}
@@ -220,8 +223,9 @@ class FallTemplateBot2026(ForecastBot):
             (b) The status quo outcome if nothing changed.
             (c) A brief description of a scenario that results in a No outcome.
             (d) A brief description of a scenario that results in a Yes outcome.
+            (e) The historical base rate for events like this one, and how much to adjust it given the research.
 
-            You write your rationale remembering that good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time.
+            You write your rationale remembering that good forecasters put extra weight on the status quo outcome since the world changes slowly most of the time, and that they avoid extreme probabilities (below 3% or above 97%) unless the outcome is essentially determined.
             {self._get_conditional_disclaimer_if_necessary(question)}
 
             The last thing you write is your final answer as: "Probability: ZZ%", 0-100
@@ -707,25 +711,48 @@ if __name__ == "__main__":
     # Configure the bot. The `llms=` block below is commented out to use
     # whichever default models forecasting-tools picks based on your env vars;
     # uncomment and edit to pin specific models.
+    # scanlab-bot configuration (Fall 2026).
+    # Budget-constrained setup (prepaid OpenRouter credits act as a hard cap):
+    #   - researcher: GPT-6 Luna with OpenRouter web search (":online") — cheap,
+    #     research quality matters more than reasoning depth (FutureEval Spring 2026 results).
+    #   - default forecaster: GPT-6.1 Sol, reasoning_effort="medium", 2 samples per question
+    #     (≈US$0.08–0.10 per question all-in). Raise samples/effort once credits allow.
+    #   - summarizer / parser: GPT-6 Luna, low effort.
+    # GPT-6 models reject `temperature`; GeneralLlm drops it automatically if sent, so we omit it.
     template_bot = FallTemplateBot2026(
         research_reports_per_question=1,
-        predictions_per_research_report=5,
+        predictions_per_research_report=2,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=publish_to_metaculus,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
         extra_metadata_in_explanation=True,
-        # llms={
-        #     "default": GeneralLlm(
-        #         model="openrouter/openai/gpt-4o",
-        #         temperature=0.3,
-        #         timeout=40,
-        #         allowed_tries=2,
-        #     ),
-        #     "summarizer": "openai/gpt-4o-mini",
-        #     "researcher": "asknews/news-summaries",
-        #     "parser": "openai/gpt-4o-mini",
-        # },
+        llms={
+            "default": GeneralLlm(
+                model="openrouter/openai/gpt-6.1-sol",
+                reasoning_effort="medium",
+                timeout=240,
+                allowed_tries=2,
+            ),
+            "researcher": GeneralLlm(
+                model="openrouter/openai/gpt-6-luna:online",
+                reasoning_effort="medium",
+                timeout=180,
+                allowed_tries=2,
+            ),
+            "summarizer": GeneralLlm(
+                model="openrouter/openai/gpt-6-luna",
+                reasoning_effort="low",
+                timeout=90,
+                allowed_tries=2,
+            ),
+            "parser": GeneralLlm(
+                model="openrouter/openai/gpt-6-luna",
+                reasoning_effort="low",
+                timeout=90,
+                allowed_tries=2,
+            ),
+        },
     )
 
     # Per-mode tournament URL shown in the summary banner footer. These
