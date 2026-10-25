@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "7,27,47 * * * *" # every 20 min, offset off the hour. Make sure to skip already-forecasted questions!
+    # scanlab-bot: schedule re-registered 2026-10-25 after enabling Actions on this fork.
 
 # Add concurrency group to prevent parallel runs
 concurrency:
