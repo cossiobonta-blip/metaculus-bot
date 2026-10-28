@@ -769,17 +769,62 @@ if __name__ == "__main__":
     # summary printers below.
     client = MetaculusClient()
     if run_mode == "tournament":
-        seasonal_tournament_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                client.CURRENT_AI_COMPETITION_ID, return_exceptions=True
+        # scanlab-bot (28-10-2026): the forecast that counts for scoring is the one
+        # standing when the question closes. Besides forecasting every new question
+        # once, refresh questions that are about to close and whose last forecast is
+        # stale, so late news is reflected. Bounded so it at most doubles the cost of
+        # a long-lived question: a question is refreshed only once (window <= gap).
+        REFRESH_WINDOW_HOURS = 36  # closes within this many hours
+        REFRESH_MIN_AGE_HOURS = 36  # last forecast older than this
+        MAX_REFRESHES_PER_RUN = 5  # cost cap per run (~US$0.10 each)
+
+        def select_questions_to_forecast(
+            questions: list[MetaculusQuestion],
+        ) -> list[MetaculusQuestion]:
+            now = datetime.now(timezone.utc)
+            new_questions = [q for q in questions if not q.already_forecasted]
+            refresh_candidates: list[tuple[datetime, MetaculusQuestion]] = []
+            for q in questions:
+                if not q.already_forecasted or q.close_time is None:
+                    continue
+                try:
+                    last = q.timestamp_of_my_last_forecast
+                except Exception:
+                    last = None
+                if last is None:
+                    continue
+                hours_to_close = (q.close_time - now).total_seconds() / 3600
+                hours_since_last = (now - last).total_seconds() / 3600
+                if (
+                    0 < hours_to_close <= REFRESH_WINDOW_HOURS
+                    and hours_since_last >= REFRESH_MIN_AGE_HOURS
+                ):
+                    refresh_candidates.append((q.close_time, q))
+            refresh_candidates.sort(key=lambda pair: pair[0])
+            refreshes = [q for _, q in refresh_candidates[:MAX_REFRESHES_PER_RUN]]
+            logger.info(
+                f"Selected {len(new_questions)} new questions and "
+                f"{len(refreshes)} refreshes (of {len(refresh_candidates)} eligible) "
+                f"out of {len(questions)} open questions"
             )
-        )
-        minibench_reports = asyncio.run(
-            template_bot.forecast_on_tournament(
-                client.CURRENT_MINIBENCH_ID, return_exceptions=True
+            for q in refreshes:
+                logger.info(f"Refreshing stale forecast near close: {q.page_url}")
+            return new_questions + refreshes
+
+        # Selection is done here, so turn off the library's own skip filter.
+        template_bot.skip_previously_forecasted_questions = False
+        forecast_reports = []
+        for tournament_id in (
+            client.CURRENT_AI_COMPETITION_ID,
+            client.CURRENT_MINIBENCH_ID,
+        ):
+            open_questions = client.get_all_open_questions_from_tournament(
+                tournament_id
             )
-        )
-        forecast_reports = seasonal_tournament_reports + minibench_reports
+            selected = select_questions_to_forecast(open_questions)
+            forecast_reports += asyncio.run(
+                template_bot.forecast_questions(selected, return_exceptions=True)
+            )
     elif run_mode == "metaculus_cup":
         # The Metaculus Cup may be uninitialized near the start of a season
         # (Jan/May/Sep). MetaculusClient.ACX_2025_TOURNAMENT = 32564 and
